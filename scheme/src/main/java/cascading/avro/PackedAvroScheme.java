@@ -17,7 +17,13 @@ import org.apache.hadoop.mapred.RecordReader;
 
 import java.io.IOException;
 
+import abracad.avro.ClojureData;
+import org.apache.avro.hadoop.io.AvroSerialization;
+
 public class PackedAvroScheme<T> extends AvroScheme {
+
+  protected boolean clojure = false;
+
   /**
    * This scheme should be used when you don't want cascading.avro to automatically unpack or pack your Avro objects.
    * The constructors are similar to the super class but there is only ever one field incoming or outgoing. The parameter
@@ -29,6 +35,12 @@ public class PackedAvroScheme<T> extends AvroScheme {
     this(null);
   }
 
+  public PackedAvroScheme(boolean clojure) {
+    this(null, clojure);
+  }
+
+
+
   /**
    * Constructs a scheme from an Avro schema and names the single field using the Schema name.
    *
@@ -36,10 +48,69 @@ public class PackedAvroScheme<T> extends AvroScheme {
    */
   public PackedAvroScheme(Schema schema) {
     this.schema = schema;
-//    if (schema == null) {
+    //    if (schema == null) {
     setSinkFields(Fields.FIRST);
     setSourceFields(Fields.FIRST);
   }
+
+
+  /**
+   * Constructs a scheme from an Avro schema and names the single field using the Schema name.
+   *
+   * @param schema The avro schema to use
+   * @param clojure Wether to use Clojure data structure
+   */
+  public PackedAvroScheme(Schema schema, boolean clojure) {
+    this(schema);
+    this.clojure = clojure;
+  }
+
+
+  /**
+     * sourceConfInit is called by cascading to set up the sources. This happens on the client side before the
+     * job is distributed.
+     * There is a check for the presence of a schema and if none has been provided the data is peeked at to get a schema.
+     * After the schema check the conf object is given the options that Avro needs.
+     *
+     * @param flowProcess The cascading FlowProcess object. Should be passed in by cascading automatically.
+     * @param tap         The cascading Tap object. Should be passed in by cascading automatically.
+     * @param conf        The Hadoop JobConf object. This is passed in by cascading automatically.
+     * @throws RuntimeException If no schema is present this halts the entire process.
+     */
+  @Override
+  public void sourceConfInit(
+    FlowProcess<JobConf> flowProcess,
+    Tap<JobConf, RecordReader, OutputCollector> tap,
+    JobConf conf) {
+    super.sourceConfInit(flowProcess, tap, conf);
+    if (clojure) {
+      AvroSerialization.setDataModelClass(conf, ClojureData.class);
+    }
+  }
+
+
+  /**
+     * sinkConfInit is called by cascading to set up the sinks. This happens on the client side before the
+     * job is distributed.
+     * There is a check for the presence of a schema and an exception is thrown if none has been provided.
+     * After the schema check the conf object is given the options that Avro needs.
+     *
+     * @param flowProcess The cascading FlowProcess object. Should be passed in by cascading automatically.
+     * @param tap         The cascading Tap object. Should be passed in by cascading automatically.
+     * @param conf        The Hadoop JobConf object. This is passed in by cascading automatically.
+     * @throws RuntimeException If no schema is present this halts the entire process.
+     */
+  @Override
+  public void sinkConfInit(
+    FlowProcess<JobConf> flowProcess,
+    Tap<JobConf, RecordReader, OutputCollector> tap,
+    JobConf conf) {
+    super.sinkConfInit(flowProcess, tap, conf);
+    if (clojure) {
+      AvroSerialization.setDataModelClass(conf, ClojureData.class);
+    }
+  }
+
 
   /**
    * Sink method to take an outgoing tuple and write it to Avro. In this scheme the incoming avro is passed through.
@@ -64,7 +135,7 @@ public class PackedAvroScheme<T> extends AvroScheme {
    */
   @Override
   public void sinkPrepare(FlowProcess<JobConf> flowProcess, SinkCall<Object[], OutputCollector> sinkCall)
-      throws IOException {
+    throws IOException {
   }
 
   /**
